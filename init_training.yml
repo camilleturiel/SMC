@@ -1,0 +1,56 @@
+---
+- hosts: localhost
+  gather_facts: false
+  connection: local
+  collections:
+    - community.crypto
+    - ansible.posix
+  vars:
+    ansible_path: "/etc/ansible/"
+
+  tasks:
+    - name: "Creating directories"
+      file:
+        path: "{{ item.path }}"
+        state: directory
+        mode: "{{ item.mode }}"
+      loop:
+        - { path: '{{ansible_path}}inventory/group_vars/all', mode: '755' }
+        - { path: '{{ansible_path}}playbooks', mode: '755' }
+        - { path: '{{ansible_path}}roles', mode: '755' }
+        - { path: '/root/.ssh/', mode: '700' }
+    - name: Generate SSH keypair
+      community.crypto.openssh_keypair:
+        path: /root/.ssh/id_rsa
+        type: rsa
+        size: 4096
+        unsafe_writes: no
+    - name: Add pubkey to authorized_keys
+      ansible.posix.authorized_key:
+        user: root
+        state: present
+        key: "{{ lookup('file', '/root/.ssh/id_rsa.pub') }}"
+    - name: "Add aliases"
+      lineinfile:
+        path: "/etc/bashrc"
+        line: alias "{{ item }}"
+        state: present
+      loop:
+        - 'vi=vim'
+    - name: "Installing extra packages"
+      package:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - tree
+    - name: Update Ansible default config for Ansible training
+      lineinfile:
+        path: "{{ansible_path}}ansible.cfg"
+        regexp: "{{ item.pattern1 }}"
+        line: "{{ item.pattern2 }}"
+        firstmatch: yes
+        state: present
+        backup: no
+      loop:
+        - { pattern1: '^#inventory\ .*', pattern2: 'inventory      = {{ansible_path}}inventory' }
+        - { pattern1: '^#\ roles_path\ .*', pattern2: 'roles_path    = {{ansible_path}}roles' }
